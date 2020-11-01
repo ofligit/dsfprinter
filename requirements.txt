@@ -1,0 +1,15 @@
+###
+# This file is only here to make sure that something like
+#
+#    pip install -e .
+#
+# works as expected. Requirements can be found in setup.py.
+###
+
+.
+
+OctoPrint~=1.4.2
+pydsfapi~=3.1.1
+future~=0.18.2
+pyserial~=3.4
+setuptools~=49.2.1
