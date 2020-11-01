@@ -129,12 +129,12 @@ class DSFPrinterPlugin(octoprint.plugin.SettingsPlugin,
 		seriallog_handler.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
 		seriallog_handler.setLevel(logging.DEBUG)
 
-		from . import dsfprinter
+		from . import serial
 
-		serial_obj = dsfprinter.DSFPrinter(self._settings,
-										   seriallog_handler=seriallog_handler,
-										   read_timeout=float(read_timeout),
-										   faked_baudrate=baudrate)
+		serial_obj = serial.Serial(self._settings,
+								   seriallog_handler=seriallog_handler,
+								   read_timeout=float(read_timeout),
+								   faked_baudrate=baudrate)
 		return serial_obj
 
 	def get_additional_port_names(self, *args, **kwargs):

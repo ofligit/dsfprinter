@@ -34,7 +34,7 @@ from octoprint_dsfprinter.pydsfapi import pydsfapi
 
 
 # noinspection PyBroadException
-class DSFPrinter(object):
+class Serial(object):
 	command_regex = re.compile(r"^([GMTF])(\d+)")
 	sleep_regex = re.compile(r"sleep (\d+)")
 	sleep_after_regex = re.compile(r"sleep_after ([GMTF]\d+) (\d+)")
@@ -178,24 +178,6 @@ class DSFPrinter(object):
 		self._triggerResendWithTimeoutAt105 = True
 		self._triggerResendWithMissingLinenoAt110 = True
 		self._triggerResendWithChecksumMismatchAt115 = True
-
-		'''
-		self._subscribe_connection = pydsfapi.SubscribeConnection(SubscriptionMode.PATCH, filter_str="heat", debug=True)
-		try:
-			self._subscribe_connection.connect()
-		except Exception as e:
-			print(e)
-
-		try:
-			self.machine_model = self._subscribe_connection.get_machine_model()
-		except Exception as e:
-			print(e)
-
-		machineModelThread = threading.Thread(
-			target=self._processMachineModel(),
-			name="octoprint.plugins.dsfprinter.model_thread")
-		machineModelThread.start()
-		'''
 
 		readThread = threading.Thread(target=self._processIncoming, name="octoprint.plugins.dsfprinter.wait_thread")
 		readThread.start()
@@ -452,7 +434,7 @@ class DSFPrinter(object):
 				self._sendOk()
 
 			# actual command handling
-			command_match = DSFPrinter.command_regex.match(data)
+			command_match = Serial.command_regex.match(data)
 			if command_match is not None:
 				command = command_match.group(0)
 				letter = command_match.group(1)
@@ -966,15 +948,15 @@ class DSFPrinter(object):
 				self._finishSdPrint()
 		else:
 			try:
-				sleep_match = DSFPrinter.sleep_regex.match(data)
-				sleep_after_match = DSFPrinter.sleep_after_regex.match(data)
-				sleep_after_next_match = DSFPrinter.sleep_after_next_regex.match(data)
-				custom_action_match = DSFPrinter.custom_action_regex.match(data)
-				prepare_ok_match = DSFPrinter.prepare_ok_regex.match(data)
-				send_match = DSFPrinter.send_regex.match(data)
-				set_ambient_match = DSFPrinter.set_ambient_regex.match(data)
-				start_sd_match = DSFPrinter.start_sd_regex.match(data)
-				select_sd_match = DSFPrinter.select_sd_regex.match(data)
+				sleep_match = Serial.sleep_regex.match(data)
+				sleep_after_match = Serial.sleep_after_regex.match(data)
+				sleep_after_next_match = Serial.sleep_after_next_regex.match(data)
+				custom_action_match = Serial.custom_action_regex.match(data)
+				prepare_ok_match = Serial.prepare_ok_regex.match(data)
+				send_match = Serial.send_regex.match(data)
+				set_ambient_match = Serial.set_ambient_regex.match(data)
+				start_sd_match = Serial.start_sd_regex.match(data)
+				select_sd_match = Serial.select_sd_regex.match(data)
 
 				if sleep_match is not None:
 					interval = int(sleep_match.group(1))
@@ -1516,18 +1498,6 @@ class DSFPrinter(object):
 
 		self._logger.info("Closing down buffer loop")
 
-	def _processMachineModel(self):
-		while self.machine_model is not None:
-			try:
-				patch = self._subscribe_connection.get_machine_model_patch()
-				print(patch)
-				dict = json.loads(patch)
-				self.machine_model.apply_patch(dict)
-				print(self.machine_model)
-			except:
-				pass
-			time.sleep(self._waitInterval)
-		self._subscribe_connection.close()
 
 	def write(self, data):
 		# type: (bytes) -> int

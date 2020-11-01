@@ -33,9 +33,6 @@ class MachineModel:
 		for key, value in kwargs.items():
 			self.__dict__[key] = value
 
-	def heaterCurrent(self, heater: int):
-		return float(__dict__['heat']['heaters'][heater]['current'])
-
 	def apply_patch(self, patch):
 		self.patch(__dict__, patch)
 
