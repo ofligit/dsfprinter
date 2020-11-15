@@ -6,8 +6,6 @@
 # works as expected. Requirements can be found in setup.py.
 ###
 
-.
-
 OctoPrint~=1.4.2
 pydsfapi~=3.1.1
 future~=0.18.2

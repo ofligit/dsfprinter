@@ -5,15 +5,12 @@ __author__ = "Oliver Bruckauf <dsfprinter@bruckauf.net>"
 __license__ = 'GNU Affero General Public License http://www.gnu.org/licenses/agpl.html'
 
 import io
-import json
 import time
 import os
 import re
 import threading
-import math
-from json.decoder import JSONDecodeError
 
-from octoprint_dsfprinter.pydsfapi.initmessages.clientinitmessages import SubscriptionMode
+from octoprint_dsfprinter.printer import Printer
 
 try:
 	import queue
@@ -24,13 +21,11 @@ except ImportError:
 from past.builtins import basestring
 
 from serial import SerialTimeoutException
+from typing import Any
 
 from octoprint.plugin import plugin_manager
 from octoprint.util import RepeatedTimer, monotonic_time, to_bytes, to_unicode
 
-from typing import Any
-
-from octoprint_dsfprinter.pydsfapi import pydsfapi
 
 
 # noinspection PyBroadException
@@ -46,11 +41,12 @@ class Serial(object):
 	start_sd_regex = re.compile(r"start_sd (.*)")
 	select_sd_regex = re.compile(r"select_sd (.*)")
 
-	def __init__(self, settings, seriallog_handler=None, read_timeout=5.0, write_timeout=10.0, faked_baudrate=115200):
+	def __init__(self, printer : Printer, settings, seriallog_handler=None, read_timeout=5.0, write_timeout=10.0, faked_baudrate=115200):
 		import logging
 		self._logger = logging.getLogger("octoprint.plugins.dsfprinter.DSFPrinter")
 		self._logger.setLevel(logging.DEBUG)
 
+		self.printer = printer
 		self._settings = settings
 		self._faked_baudrate = faked_baudrate
 
@@ -303,7 +299,7 @@ class Serial(object):
 		next_wait_timeout = monotonic_time() + self._waitInterval
 		buf = b""
 		while self.incoming is not None and not self._killed:
-			self._simulateTemps()
+			self._updateTemps()
 
 			if self._heatingUp:
 				time.sleep(1)
@@ -1429,7 +1425,7 @@ class Serial(object):
 				return
 
 			while not self._killed and self._heatingUp and test():
-				self._simulateTemps(delta=delta)
+				self._updateTemps()
 				self._send(output())
 				if self._sendBusy and monotonic_time() - last_busy >= self._busyInterval:
 					self._send("echo:busy: processing")
@@ -1449,39 +1445,14 @@ class Serial(object):
 		if os.path.exists(f) and os.path.isfile(f):
 			os.remove(f)
 
-	def _simulateTemps(self, delta=0.5):
-		timeDiff = self.lastTempAt - monotonic_time()
-		self.lastTempAt = monotonic_time()
-
-		def simulate(actual, target, ambient):
-			if target > 0:
-				goal = target
-				remaining = abs(actual - target)
-				if remaining > delta:
-					factor = 10
-				elif remaining < delta:
-					factor = remaining
-			elif not target and abs(actual - ambient) > delta:
-				goal = ambient
-				factor = 2
-			else:
-				return actual
-
-			old = actual
-			actual += math.copysign(timeDiff * factor, goal - actual)
-
-			if math.copysign(1, goal - old) != math.copysign(1, goal - actual):
-				actual = goal
-
-			return actual
-
+	def _updateTemps(self):
 		for i in range(len(self.temp)):
 			if i in self.pinnedExtruders:
 				self.temp[i] = self.pinnedExtruders[i]
 				continue
-			self.temp[i] = simulate(self.temp[i], self.targetTemp[i], self._ambient_temperature)
-		self.bedTemp = simulate(self.bedTemp, self.bedTargetTemp, self._ambient_temperature)
-		self.chamberTemp = simulate(self.chamberTemp, self.chamberTargetTemp, self._ambient_temperature)
+			self.temp[i] = self.printer.temp(i)
+		self.bedTemp = self.printer.bed_temp()
+		self.chamberTemp = self.printer.chamber_temp()
 
 	def _processBuffer(self):
 		while self.buffered is not None:
@@ -1610,7 +1581,7 @@ class CharCountingQueue(queue.Queue):
 	def __init__(self, maxsize, name=None):
 		import logging
 		self._logger = logging.getLogger("octoprint.plugins.dsfprinter.DSFPrinter.CharCountingQueue")
-		# self._logger.setLevel(logging.DEBUG)
+		self._logger.setLevel(logging.INFO)
 		self._logger.debug("__init__")
 		queue.Queue.__init__(self, maxsize=maxsize)
 		self._size = 0

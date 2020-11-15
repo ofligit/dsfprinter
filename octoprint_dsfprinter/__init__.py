@@ -3,18 +3,24 @@ from __future__ import absolute_import
 
 import octoprint.plugin
 
+from octoprint_dsfprinter import printer
 
-class DSFPrinterPlugin(octoprint.plugin.SettingsPlugin,
-                       octoprint.plugin.AssetPlugin,
-                       octoprint.plugin.StartupPlugin):
 
-	##~~ StartupPlugin mixin
+class DSFPrinterPlugin(
+	octoprint.plugin.SettingsPlugin,
+	octoprint.plugin.AssetPlugin,
+	octoprint.plugin.StartupPlugin):
+
+	# StartupPlugin mixin
+
+	def __init__(self):
+		super().__init__()
+		self.printer = None
 
 	def on_after_startup(self):
 		self._logger.info("Loaded DSFPrinter Plugin")
 
-
-	##~~ SettingsPlugin mixin
+	# SettingsPlugin mixin
 
 	def get_settings_defaults(self):
 		return {
@@ -80,7 +86,7 @@ class DSFPrinterPlugin(octoprint.plugin.SettingsPlugin,
 				self._settings.global_set(["plugins", "dsfprinter"], config, force=True)
 				self._settings.global_remove(["devel", "dsfprinter"])
 
-	##~~ AssetPlugin mixin
+	# AssetPlugin mixin
 
 	def get_assets(self):
 		# Define your plugin's asset files to automatically include in the
@@ -91,7 +97,7 @@ class DSFPrinterPlugin(octoprint.plugin.SettingsPlugin,
 			less=["less/dsfprinter.less"]
 		)
 
-	##~~ Softwareupdate hook
+	# Softwareupdate hook
 
 	def get_update_information(self):
 		# Define the configuration for your plugin to use with the Software Update
@@ -114,9 +120,11 @@ class DSFPrinterPlugin(octoprint.plugin.SettingsPlugin,
 		)
 
 	def dsfprinter_printer_factory(self, comm_instance, port, baudrate, read_timeout):
-		self._logger.info("+DSFPrinterPlugin.dsfprinter_factory"+str(port))
+		self._logger.info("+DSFPrinterPlugin.dsfprinter_factory port=" + str(port))
 		if not port == "DSF":
 			return None
+
+		self.printer = printer.Printer(self._settings)
 
 		import logging.handlers
 		from octoprint.logging.handlers import CleaningTimedRotatingFileHandler
@@ -129,12 +137,19 @@ class DSFPrinterPlugin(octoprint.plugin.SettingsPlugin,
 		seriallog_handler.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
 		seriallog_handler.setLevel(logging.DEBUG)
 
+
 		from . import serial
 
-		serial_obj = serial.Serial(self._settings,
-								   seriallog_handler=seriallog_handler,
-								   read_timeout=float(read_timeout),
-								   faked_baudrate=baudrate)
+		serial_obj = serial.Serial(
+			self.printer,
+			self._settings,
+			seriallog_handler=seriallog_handler,
+			read_timeout=float(read_timeout),
+			faked_baudrate=baudrate)
+
+		self.printer.subscribe()
+
+		self._logger.info("-DSFPrinterPlugin.dsfprinter_factory port=" + str(port))
 		return serial_obj
 
 	def get_additional_port_names(self, *args, **kwargs):
@@ -146,7 +161,8 @@ class DSFPrinterPlugin(octoprint.plugin.SettingsPlugin,
 
 
 __plugin_name__ = "DSFPrinter Plugin"
-__plugin_pythoncompat__ = ">=3,<4" # only python 3
+__plugin_pythoncompat__ = ">=3,<4"  # only python 3
+
 
 def __plugin_load__():
 	plugin = DSFPrinterPlugin()
