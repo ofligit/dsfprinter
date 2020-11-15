@@ -44,19 +44,12 @@ class DSFPrinterPlugin(
 			"brokenM29": True,
 			"brokenResend": False,
 			"supportF": False,
-			"firmwareName": "DSF",
 			"sharedNozzle": False,
 			"sendBusy": False,
 			"busyInterval": 2.0,
 			"preparedOks": [],
 			"okFormatString": "ok",
 			"m115FormatString": "FIRMWARE_NAME:{firmware_name} PROTOCOL_VERSION:1.0",
-			"m115ReportCapabilities": True,
-			"capabilities": {
-				"AUTOREPORT_TEMP": True,
-				"AUTOREPORT_SD_STATUS": True,
-				"EMERGENCY_PARSER": True
-			},
 			"m114FormatString": "X:{x} Y:{y} Z:{z} E:{e[current]} Count: A:{a} B:{b} C:{c}",
 			"ambientTemperature": 21.3,
 			"errors": {

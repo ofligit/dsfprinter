@@ -136,11 +136,8 @@ class Serial(object):
 		self._brokenResend = self._settings.get_boolean(["brokenResend"])
 
 		self._m115FormatString = self._settings.get(["m115FormatString"])
-		self._firmwareName = self._settings.get(["firmwareName"])
 
 		self._okFormatString = self._settings.get(["okFormatString"])
-
-		self._capabilities = self._settings.get(["capabilities"], merged=True)
 
 		self._temperature_reporter = None
 		self._sdstatus_reporter = None
@@ -640,12 +637,19 @@ class Serial(object):
 	def _gcode_M115(self, data):
 		# type: (str) -> None
 		self._logger.debug("_gcode_M115(data={}s)".format(data))
-		output = self._m115FormatString.format(firmware_name=self._firmwareName)
+		output = "{} PROTOCOL_VERSION:1.0".format(self.printer.command(data).strip())
+		self._logger.debug(output)
 		self._send(output)
 
-		if self._settings.get_boolean(["m115ReportCapabilities"]):
-			for cap, enabled in self._capabilities.items():
-				self._send("Cap:{}:{}".format(cap.upper(), "1" if enabled else "0"))
+		# Cap:EEPROM:1
+		# Cap:PROGRESS:0
+		# Cap:AUTOLEVEL:1
+		# Cap:Z_PROBE:1
+		# Cap:SOFTWARE_POWER:0
+		# Cap:TOGGLE_LIGHTS:0
+		self._send("Cap:AUTOREPORT_TEMP:1")
+		self._send("Cap:AUTOREPORT_SD_STATUS:1")
+		self._send("Cap:EMERGENCY_PARSER:1")
 
 	def _gcode_M117(self, data):
 		# type: (str) -> None
