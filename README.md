@@ -1,3 +1,7 @@
+# NOT READY FOR USE
+
+The plugin in this repository is still under development and not ready for use. No, not even alpha. Just work in progress.
+
 # OctoPrint-DSFPrinter
 
 This plugin uses the Duet Software Framework python API to directly connect to the DSF socket.
