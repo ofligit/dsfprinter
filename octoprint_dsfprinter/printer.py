@@ -124,9 +124,13 @@ class Printer:
 			self.temp_logger.debug("-target_temp()->0 (no tool heater)")
 			return 0
 
+	@property
+	def has_bed_heater(self):
+		return len(self.bed_heaters) > 0
+
 	def current_bed_temp(self):
 		self.temp_logger.debug("+current_bed_temp()")
-		if len(self.bed_heaters) == 0:
+		if not self.has_bed_heater:
 			self.temp_logger.debug("-current_bed_temp()->0 (no bed heater)")
 			return 0
 		else:
@@ -140,7 +144,7 @@ class Printer:
 
 	def target_bed_temp(self):
 		self.temp_logger.debug("+target_bed_temp()")
-		if len(self.bed_heaters) == 0:
+		if not self.has_bed_heater:
 			self.temp_logger.debug("-target_bed_temp()->0 (no bed heater)")
 			return 0
 		else:
@@ -157,8 +161,12 @@ class Printer:
 				self.temp_logger.debug("-target_bed_temp(heater={})->{}".format(heater_num, temp))
 				return temp
 
+	@property
+	def has_chamber_heater(self):
+		return len(self.chamber_heaters) > 0
+
 	def current_chamber_temp(self):
-		if len(self.chamber_heaters) == 0:
+		if not self.has_chamber_heater:
 			self.temp_logger.debug("-current_chamber_temp()->0 (no chamber heater)")
 			return 0
 		else:
@@ -170,7 +178,7 @@ class Printer:
 				return temp
 
 	def target_chamber_temp(self):
-		if len(self.chamber_heaters) == 0:
+		if not self.has_chamber_heater:
 			self.temp_logger.debug("-target_chamber_temp()->0 (no chamber heater)")
 			return 0
 		else:
@@ -194,3 +202,4 @@ class Printer:
 			return res
 		except:
 			return 'Not OK, something went wrong'
+

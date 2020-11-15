@@ -1054,32 +1054,30 @@ class Serial(object):
 			allTempsString = " ".join(
 				map(lambda x: "T%d:%.2f /%.2f" % x, allTemps))
 
-			if self._settings.get_boolean(["hasBed"]):
+			if self.printer.has_bed_heater:
 				allTempsString = "B:%.2f /%.2f %s" % (
 					self.printer.current_bed_temp(),
 					self.printer.target_bed_temp(),
 					allTempsString)
 
-			if self._settings.get_boolean(["hasChamber"]):
+			if self.printer.has_chamber_heater:
 				allTempsString = "C:%.2f /%.2f %s" % (
 					self.printer.current_chamber_temp(),
 					self.printer.target_chamber_temp(), allTempsString)
 
-			if self._settings.get_boolean(["includeCurrentToolInTemps"]):
-				output = "T:%.2f %s" % (self.printer.current_temp(self.currentExtruder), allTempsString)
-			else:
-				output = allTempsString
+			# include current tool
+			output = "T:%.2f %s" % (self.printer.current_temp(self.currentExtruder), allTempsString)
 		else:
 			prefix = "T"
 
 			t = "%s:%.2f /%.2f" % (prefix, self.printer.current_temp(0), self.printer.target_temp(0))
 
-			if self._settings.get_boolean(["hasBed"]):
+			if self.printer.has_bed_heater:
 				b = "B:%.2f /%.2f" % (self.printer.current_bed_temp(), self.printer.target_bed_temp())
 			else:
 				b = ""
 
-			if self._settings.get_boolean(["hasChamber"]):
+			if self.printer.has_chamber_heater:
 				c = "C:%.2f /%.2f" % (self.printer.current_chamber_temp(), self.printer.target_chamber_temp())
 			else:
 				c = ""
