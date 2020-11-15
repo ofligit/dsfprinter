@@ -29,7 +29,7 @@ class Printer:
 	logger = logging.getLogger("octoprint.plugins.dsfprinter.printer")
 	logger.setLevel(logging.DEBUG)
 
-	temp_logger = logging.getLogger("octoprint.plugins.dsfprinter.printer.temp")
+	temp_logger = logging.getLogger("octoprint.plugins.dsfprinter.printer.current_temp")
 	temp_logger.setLevel(logging.INFO)
 
 	interval = .01
@@ -96,23 +96,47 @@ class Printer:
 				self.next_wait_timeout = monotonic_time() + self.interval
 		self.temp_logger.debug("-update_temps")
 
-	def temp(self, i):
-		self.temp_logger.debug("+temp({})".format(i))
+	def tool_temps(self):
+		all_temps = []
+		for i in range(len(self.heaters)):
+			all_temps.append((i, self.current_temp(i), self.target_temp(i)))
+		return all_temps
+
+	def current_temp(self, i):
+		self.temp_logger.debug("+current_temp({})".format(i))
 		if len(self.heaters) > i:
 			self.update_temps()
 			with self.connection_lock:
 				heater = self.heaters[i]
 				temp = self.model.__dict__["heat"]["heaters"][heater]["current"]
-				self.temp_logger.debug("-temp({}, heater={})->{}".format(i, heater, temp))
+				self.temp_logger.debug("-current_temp({}, heater={})->{}".format(i, heater, temp))
 				return temp
 		else:
-			self.temp_logger.debug("-temp()->0 (no tool heater)")
+			self.temp_logger.debug("-current_temp()->0 (no tool heater)")
 			return 0
 
-	def bed_temp(self):
-		self.temp_logger.debug("+bed_temp()")
+	def target_temp(self, i):
+		self.temp_logger.debug("+target_temp({})".format(i))
+		if len(self.heaters) > i:
+			self.update_temps()
+			with self.connection_lock:
+				heater_num = self.heaters[i]
+				heater = self.model.__dict__["heat"]["heaters"][heater_num]
+				temp = 0
+				if heater['state'] == "active":
+					temp = heater['active']
+				if heater['state'] == "standby":
+					temp = heater['standby']
+				self.temp_logger.debug("-target_temp({}, heater={})->{}".format(i, heater_num, temp))
+				return temp
+		else:
+			self.temp_logger.debug("-target_temp()->0 (no tool heater)")
+			return 0
+
+	def current_bed_temp(self):
+		self.temp_logger.debug("+current_bed_temp()")
 		if len(self.bed_heaters) == 0:
-			self.temp_logger.debug("-bed_temp()->0 (no bed heater)")
+			self.temp_logger.debug("-current_bed_temp()->0 (no bed heater)")
 			return 0
 		else:
 			self.update_temps()
@@ -120,17 +144,53 @@ class Printer:
 				# return only first bed heater for now
 				heater = self.bed_heaters[0]
 				temp = self.model.__dict__["heat"]["heaters"][heater]["current"]
-				self.temp_logger.debug("-bed_temp(heater={})->{}".format(heater, temp))
+				self.temp_logger.debug("-current_bed_temp(heater={})->{}".format(heater, temp))
 				return temp
 
-	def chamber_temp(self):
+	def target_bed_temp(self):
+		self.temp_logger.debug("+target_bed_temp()")
+		if len(self.bed_heaters) == 0:
+			self.temp_logger.debug("-target_bed_temp()->0 (no bed heater)")
+			return 0
+		else:
+			self.update_temps()
+			with self.connection_lock:
+				# return only first bed heater for now
+				heater_num = self.bed_heaters[0]
+				heater = self.model.__dict__["heat"]["heaters"][heater_num]
+				temp = 0
+				if heater['state'] == "active":
+					temp = heater['active']
+				if heater['state'] == "standby":
+					temp = heater['standby']
+				self.temp_logger.debug("-target_bed_temp(heater={})->{}".format(heater_num, temp))
+				return temp
+
+	def current_chamber_temp(self):
 		if len(self.chamber_heaters) == 0:
-			self.temp_logger.debug("-chamber_temp()->0 (no chamber heater)")
+			self.temp_logger.debug("-current_chamber_temp()->0 (no chamber heater)")
 			return 0
 		else:
 			self.update_temps()
 			with self.connection_lock:
 				# return only first chamber heater for now
 				temp = self.model.__dict__["heat"]["heaters"][self.chamber_heaters[0]]["current"]
-				self.temp_logger.debug("-chamber_temp()->{}".format(temp))
+				self.temp_logger.debug("-current_chamber_temp()->{}".format(temp))
+				return temp
+
+	def target_chamber_temp(self):
+		if len(self.chamber_heaters) == 0:
+			self.temp_logger.debug("-target_chamber_temp()->0 (no chamber heater)")
+			return 0
+		else:
+			self.update_temps()
+			with self.connection_lock:
+				# return only first chamber heater for now
+				heater = self.model.__dict__["heat"]["heaters"][self.chamber_heaters[0]]
+				temp = 0
+				if heater['state'] == "active":
+					temp = heater['active']
+				if heater['state'] == "standby":
+					temp = heater['standby']
+				self.temp_logger.debug("-target_chamber_temp()->{}".format(temp))
 				return temp

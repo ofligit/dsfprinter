@@ -27,7 +27,6 @@ from octoprint.plugin import plugin_manager
 from octoprint.util import RepeatedTimer, monotonic_time, to_bytes, to_unicode
 
 
-
 # noinspection PyBroadException
 class Serial(object):
 	command_regex = re.compile(r"^([GMTF])(\d+)")
@@ -41,7 +40,8 @@ class Serial(object):
 	start_sd_regex = re.compile(r"start_sd (.*)")
 	select_sd_regex = re.compile(r"select_sd (.*)")
 
-	def __init__(self, printer : Printer, settings, seriallog_handler=None, read_timeout=5.0, write_timeout=10.0, faked_baudrate=115200):
+	def __init__(self, printer: Printer, settings, seriallog_handler=None, read_timeout=5.0, write_timeout=10.0,
+				 faked_baudrate=115200):
 		import logging
 		self._logger = logging.getLogger("octoprint.plugins.dsfprinter.DSFPrinter")
 		self._logger.setLevel(logging.DEBUG)
@@ -94,8 +94,6 @@ class Serial(object):
 
 		self._ambient_temperature = self._settings.get_float(["ambientTemperature"])
 
-		self.temp = [self._ambient_temperature] * self.temperatureCount
-		self.targetTemp = [0.0] * self.temperatureCount
 		self.bedTemp = self._ambient_temperature
 		self.bedTargetTemp = 0.0
 		self.chamberTemp = self._ambient_temperature
@@ -299,7 +297,6 @@ class Serial(object):
 		next_wait_timeout = monotonic_time() + self._waitInterval
 		buf = b""
 		while self.incoming is not None and not self._killed:
-			self._updateTemps()
 
 			if self._heatingUp:
 				time.sleep(1)
@@ -1047,48 +1044,40 @@ class Serial(object):
 
 	def _generateTemperatureOutput(self):
 		# type: () -> str
-		# send simulated temperature data
-
-		'''
-		try:
-			patch = self._subscribe_connection.get_machine_model_patch()
-			print(patch)
-			dict = json.loads(patch)
-			self.machine_model.apply_patch(dict)
-			print(self.machine_model)
-		except Exception as e:
-			print(e)
-		'''
+		# send temperature auto-report data
 
 		if self.temperatureCount > 1:
-			allTemps = []
-			for i in range(len(self.temp)):
-				allTemps.append((i, self.temp[i], self.targetTemp[i]))
+			allTemps = self.printer.tool_temps()
 			allTempsString = " ".join(
 				map(lambda x: "T%d:%.2f /%.2f" % x, allTemps))
 
 			if self._settings.get_boolean(["hasBed"]):
-				allTempsString = "B:%.2f %s" % (self.bedTemp, allTempsString)
+				allTempsString = "B:%.2f /%.2f %s" % (
+					self.printer.current_bed_temp(),
+					self.printer.target_bed_temp(),
+					allTempsString)
 
 			if self._settings.get_boolean(["hasChamber"]):
-				allTempsString = "C:%.2f %s" % (self.chamberTemp, allTempsString)
+				allTempsString = "C:%.2f /%.2f %s" % (
+					self.printer.current_chamber_temp(),
+					self.printer.target_chamber_temp(), allTempsString)
 
 			if self._settings.get_boolean(["includeCurrentToolInTemps"]):
-				output = "T:%.2f %s" % (self.temp[self.currentExtruder], allTempsString)
+				output = "T:%.2f %s" % (self.printer.current_temp(self.currentExtruder), allTempsString)
 			else:
 				output = allTempsString
 		else:
 			prefix = "T"
 
-			t = "%s:%.2f" % (prefix, self.temp[0])
+			t = "%s:%.2f /%.2f" % (prefix, self.printer.current_temp(0), self.printer.target_temp(0))
 
 			if self._settings.get_boolean(["hasBed"]):
-				b = "B:%.2f" % self.bedTemp
+				b = "B:%.2f /%.2f" % (self.printer.current_bed_temp(), self.printer.target_bed_temp())
 			else:
 				b = ""
 
 			if self._settings.get_boolean(["hasChamber"]):
-				c = "C:%.2f" % self.chamberTemp
+				c = "C:%.2f /%.2f" % (self.printer.current_chamber_temp(), self.printer.target_chamber_temp())
 			else:
 				c = ""
 
@@ -1411,15 +1400,15 @@ class Serial(object):
 			if heater.startswith("tool"):
 				toolNum = int(heater[len("tool"):])
 				test = lambda: self.temp[toolNum] < self.targetTemp[toolNum] - delta or (
-							not only_wait_if_higher and self.temp[toolNum] > self.targetTemp[toolNum] + delta)
+						not only_wait_if_higher and self.temp[toolNum] > self.targetTemp[toolNum] + delta)
 				output = lambda: "T:%0.2f" % self.temp[toolNum]
 			elif heater == "bed":
 				test = lambda: self.bedTemp < self.bedTargetTemp - delta or (
-							not only_wait_if_higher and self.bedTemp > self.bedTargetTemp + delta)
+						not only_wait_if_higher and self.bedTemp > self.bedTargetTemp + delta)
 				output = lambda: "B:%0.2f" % self.bedTemp
 			elif heater == "chamber":
 				test = lambda: self.chamberTemp < self.chamberTargetTemp - delta or (
-							not only_wait_if_higher and self.chamberTemp > self.chamberTargetTemp + delta)
+						not only_wait_if_higher and self.chamberTemp > self.chamberTargetTemp + delta)
 				output = lambda: "C:%0.2f" % self.chamberTemp
 			else:
 				return
@@ -1450,9 +1439,9 @@ class Serial(object):
 			if i in self.pinnedExtruders:
 				self.temp[i] = self.pinnedExtruders[i]
 				continue
-			self.temp[i] = self.printer.temp(i)
-		self.bedTemp = self.printer.bed_temp()
-		self.chamberTemp = self.printer.chamber_temp()
+			self.temp[i] = self.printer.current_temp(i)
+		self.bedTemp = self.printer.current_bed_temp()
+		self.chamberTemp = self.printer.current_chamber_temp()
 
 	def _processBuffer(self):
 		while self.buffered is not None:
@@ -1468,7 +1457,6 @@ class Serial(object):
 			self.buffered.task_done()
 
 		self._logger.info("Closing down buffer loop")
-
 
 	def write(self, data):
 		# type: (bytes) -> int
