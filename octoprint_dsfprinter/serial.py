@@ -70,10 +70,6 @@ class Serial(object):
 		self.outgoing = queue.Queue()
 		self.buffered = queue.Queue(maxsize=self._settings.get_int(["commandBuffer"]))
 
-		if self._settings.get_boolean(["simulateReset"]):
-			for item in self._settings.get(["resetLines"]):
-				self._send(item + "\n")
-
 		self._prepared_oks = []
 		prepared = self._settings.get(["preparedOks"])
 		if prepared and isinstance(prepared, list):
@@ -247,10 +243,6 @@ class Serial(object):
 			self._clearQueue(self.incoming)
 			self._clearQueue(self.outgoing)
 			self._clearQueue(self.buffered)
-
-			if self._settings.get_boolean(["simulateReset"]):
-				for item in self._settings.get(["resetLines"]):
-					self._send(item + "\n")
 
 	@property
 	def timeout(self):
@@ -498,27 +490,33 @@ class Serial(object):
 		# type: (str) -> None
 		self._logger.debug("_gcode_M104(data={})".format(data))
 		self.printer.command(data)
+		self.printer.update_temps()
 
 	def _gcode_M109(self, data):
 		# type: (str) -> None
 		self._logger.debug("_gcode_M109(data={})".format(data))
 		self.printer.command(data)
+		self.printer.update_temps()
 
 	def _gcode_M140(self, data):
 		# type: (str) -> None
 		self.printer.command(data)
+		self.printer.update_temps()
 
 	def _gcode_M190(self, data):
 		# type: (str) -> None
 		self.printer.command(data)
+		self.printer.update_temps()
 
 	def _gcode_M141(self, data):
 		# type: (str) -> None
 		self.printer.command(data)
+		self.printer.update_temps()
 
 	def _gcode_M191(self, data):
 		# type: (str) -> None
 		self.printer.command(data)
+		self.printer.update_temps()
 
 	# noinspection PyUnusedLocal
 	def _gcode_M105(self, data):

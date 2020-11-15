@@ -48,8 +48,6 @@ class DSFPrinterPlugin(
 			"sharedNozzle": False,
 			"sendBusy": False,
 			"busyInterval": 2.0,
-			"simulateReset": True,
-			"resetLines": ['start', 'DSF: Virtual DSF!', '\x80', 'SD card ok'],
 			"preparedOks": [],
 			"okFormatString": "ok",
 			"m115FormatString": "FIRMWARE_NAME:{firmware_name} PROTOCOL_VERSION:1.0",
