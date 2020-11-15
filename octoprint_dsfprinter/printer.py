@@ -11,19 +11,6 @@ from octoprint.util import monotonic_time
 from octoprint_dsfprinter.model.patch import patch
 
 
-def command():
-	"""Example of a command connection to send arbitrary commands to the machine"""
-	command_connection = pydsfapi.CommandConnection(debug=False)
-	command_connection.connect()
-
-	try:
-		# Perform a simple command and wait for its output
-		res = command_connection.perform_simple_code('M115')
-		print(res)
-	finally:
-		command_connection.close()
-
-
 # noinspection PyBroadException
 class Printer:
 	logger = logging.getLogger("octoprint.plugins.dsfprinter.printer")
@@ -52,8 +39,12 @@ class Printer:
 		self.chamber_heaters = array.array('i', [])
 		self.logger.debug("-__init__")
 
+		self.command_connection = pydsfapi.CommandConnection(debug=True)
+		self.command_connection.connect()
+
 	def subscribe(self):
 		self.logger.debug("+subscribe")
+
 		with self.connection_lock:
 			if not self.subscribed.is_set():
 				self.tool_connection.connect()
@@ -194,3 +185,12 @@ class Printer:
 					temp = heater['standby']
 				self.temp_logger.debug("-target_chamber_temp()->{}".format(temp))
 				return temp
+
+	def command(self, command_str):
+		# type: (str) -> str
+		try:
+			res = self.command_connection.perform_simple_code(command_str)
+			print(res)
+			return res
+		except:
+			return 'Not OK, something went wrong'

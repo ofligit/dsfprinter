@@ -40,8 +40,8 @@ class Serial(object):
 	start_sd_regex = re.compile(r"start_sd (.*)")
 	select_sd_regex = re.compile(r"select_sd (.*)")
 
-	def __init__(self, printer: Printer, settings, seriallog_handler=None, read_timeout=5.0, write_timeout=10.0,
-				 faked_baudrate=115200):
+	def __init__(self, printer: Printer, settings, seriallog_handler=None,
+				 read_timeout=5.0, write_timeout=10.0, faked_baudrate=115200):
 		import logging
 		self._logger = logging.getLogger("octoprint.plugins.dsfprinter.DSFPrinter")
 		self._logger.setLevel(logging.DEBUG)
@@ -302,6 +302,7 @@ class Serial(object):
 				time.sleep(1)
 				continue
 
+			data = None
 			try:
 				data = self.incoming.get(timeout=0.01)
 				data = to_bytes(data, encoding="ascii", errors="replace")
@@ -495,27 +496,29 @@ class Serial(object):
 
 	def _gcode_M104(self, data):
 		# type: (str) -> None
-		self._logger.debug("_gcode_M104(data={}s)".format(data))
-		self._parseHotendCommand(data)
+		self._logger.debug("_gcode_M104(data={})".format(data))
+		self.printer.command(data)
 
 	def _gcode_M109(self, data):
 		# type: (str) -> None
-		self._logger.debug("_gcode_M109(data={}s)".format(data))
-		self._parseHotendCommand(data, wait=True, support_r=True)
+		self._logger.debug("_gcode_M109(data={})".format(data))
+		self.printer.command(data)
 
 	def _gcode_M140(self, data):
 		# type: (str) -> None
-		self._parseBedCommand(data)
+		self.printer.command(data)
 
 	def _gcode_M190(self, data):
 		# type: (str) -> None
-		self._parseBedCommand(data, wait=True, support_r=True)
+		self.printer.command(data)
 
 	def _gcode_M141(self, data):
-		self._parseChamberCommand(data)
+		# type: (str) -> None
+		self.printer.command(data)
 
 	def _gcode_M191(self, data):
-		self._parseChamberCommand(data, wait=True, support_r=True)
+		# type: (str) -> None
+		self.printer.command(data)
 
 	# noinspection PyUnusedLocal
 	def _gcode_M105(self, data):
@@ -1097,71 +1100,6 @@ class Serial(object):
 				output = "{} {}".format(ok, output)
 		self._send(output)
 
-	def _parseHotendCommand(self, line, wait=False, support_r=False):
-		# type: (str, bool, bool) -> None
-		only_wait_if_higher = True
-		tool = 0
-		toolMatch = re.search(r'T([0-9]+)', line)
-		if toolMatch:
-			tool = int(toolMatch.group(1))
-
-		if tool >= self.temperatureCount:
-			return
-
-		try:
-			self.targetTemp[tool] = float(re.search(r'S([0-9]+)', line).group(1))
-		except Exception:
-			if support_r:
-				try:
-					self.targetTemp[tool] = float(re.search(r'R([0-9]+)', line).group(1))
-					only_wait_if_higher = False
-				except Exception:
-					pass
-
-		if wait:
-			self._waitForHeatup("tool%d" % tool, only_wait_if_higher)
-		if self._settings.get_boolean(["repetierStyleTargetTemperature"]):
-			self._send("TargetExtr%d:%d" % (tool, self.targetTemp[tool]))
-
-	def _parseBedCommand(self, line, wait=False, support_r=False):
-		# type: (str, bool, bool) -> None
-		if not self._settings.get_boolean(["hasBed"]):
-			return
-
-		only_wait_if_higher = True
-		try:
-			self.bedTargetTemp = float(re.search(r'S([0-9]+)', line).group(1))
-		except Exception:
-			if support_r:
-				try:
-					self.bedTargetTemp = float(re.search(r'R([0-9]+)', line).group(1))
-					only_wait_if_higher = False
-				except Exception:
-					pass
-
-		if wait:
-			self._waitForHeatup("bed", only_wait_if_higher)
-		if self._settings.get_boolean(["repetierStyleTargetTemperature"]):
-			self._send("TargetBed:%d" % self.bedTargetTemp)
-
-	def _parseChamberCommand(self, line, wait=False, support_r=False):
-		if not self._settings.get_boolean(["hasChamber"]):
-			return
-
-		only_wait_if_higher = True
-		try:
-			self.chamberTargetTemp = float(re.search('S([0-9]+)', line).group(1))
-		except:
-			if support_r:
-				try:
-					self.chamberTargetTemp = float(re.search('R([0-9]+)', line).group(1))
-					only_wait_if_higher = False
-				except:
-					pass
-
-		if wait:
-			self._waitForHeatup("chamber", only_wait_if_higher)
-
 	def _performMove(self, line):
 		# type: (str) -> None
 		matchX = re.search(r"X(-?[0-9.]+)", line)
@@ -1366,10 +1304,8 @@ class Serial(object):
 						break
 
 					# set target temps
-					if 'M104' in line or 'M109' in line:
-						self._parseHotendCommand(line, wait='M109' in line)
-					elif 'M140' in line or 'M190' in line:
-						self._parseBedCommand(line, wait='M190' in line)
+					if 'M104' in line or 'M109' in line or 'M140' in line or 'M190' in line:
+						self.printer.command(line)
 					elif line.startswith("G0") or line.startswith("G1") or line.startswith("G2") or line.startswith(
 							"G3"):
 						# simulate reprap buffered commands via a Queue with maxsize which internally simulates the moves
@@ -1389,43 +1325,6 @@ class Serial(object):
 			self._sdPrinting = False
 			self._sdPrinter = None
 
-	def _waitForHeatup(self, heater, only_wait_if_higher):
-		# type: (str, bool) -> None
-		delta = 1
-		delay = 1
-		last_busy = monotonic_time()
-
-		self._heatingUp = True
-		try:
-			if heater.startswith("tool"):
-				toolNum = int(heater[len("tool"):])
-				test = lambda: self.temp[toolNum] < self.targetTemp[toolNum] - delta or (
-						not only_wait_if_higher and self.temp[toolNum] > self.targetTemp[toolNum] + delta)
-				output = lambda: "T:%0.2f" % self.temp[toolNum]
-			elif heater == "bed":
-				test = lambda: self.bedTemp < self.bedTargetTemp - delta or (
-						not only_wait_if_higher and self.bedTemp > self.bedTargetTemp + delta)
-				output = lambda: "B:%0.2f" % self.bedTemp
-			elif heater == "chamber":
-				test = lambda: self.chamberTemp < self.chamberTargetTemp - delta or (
-						not only_wait_if_higher and self.chamberTemp > self.chamberTargetTemp + delta)
-				output = lambda: "C:%0.2f" % self.chamberTemp
-			else:
-				return
-
-			while not self._killed and self._heatingUp and test():
-				self._updateTemps()
-				self._send(output())
-				if self._sendBusy and monotonic_time() - last_busy >= self._busyInterval:
-					self._send("echo:busy: processing")
-					last_busy = monotonic_time()
-				time.sleep(delay)
-		except AttributeError:
-			if self.outgoing is not None:
-				raise
-		finally:
-			self._heatingUp = False
-
 	def _deleteSdFile(self, filename):
 		# type: (str) -> None
 		if filename.startswith("/"):
@@ -1433,15 +1332,6 @@ class Serial(object):
 		f = os.path.join(self._dsfSd, filename)
 		if os.path.exists(f) and os.path.isfile(f):
 			os.remove(f)
-
-	def _updateTemps(self):
-		for i in range(len(self.temp)):
-			if i in self.pinnedExtruders:
-				self.temp[i] = self.pinnedExtruders[i]
-				continue
-			self.temp[i] = self.printer.current_temp(i)
-		self.bedTemp = self.printer.current_bed_temp()
-		self.chamberTemp = self.printer.current_chamber_temp()
 
 	def _processBuffer(self):
 		while self.buffered is not None:
