@@ -154,8 +154,6 @@ class Serial(object):
 
 		self._dont_answer = False
 
-		self._debug_drop_connection = False
-
 		self._action_hooks = plugin_manager().get_hooks("octoprint.plugin.dsfprinter.custom_action")
 
 		self._killed = False
@@ -218,9 +216,6 @@ class Serial(object):
 			self._sleepAfter.clear()
 
 			self._dont_answer = False
-
-			self._debug_drop_connection = False
-
 			self._killed = False
 
 			self._triggerResendAt100 = True
@@ -922,8 +917,6 @@ class Serial(object):
 		elif data == "trigger_fatal_error_repetier":
 			self._send(
 				"fatal: Heater/sensor error - Printer stopped and heaters disabled due to this error. Fix error and restart with M999.")
-		elif data == "drop_connection":
-			self._debug_drop_connection = True
 		elif data == "reset":
 			self._reset()
 		elif data == "mintemp_error":
@@ -1365,10 +1358,6 @@ class Serial(object):
 		if self._debug_awol:
 			return len(data)
 
-		if self._debug_drop_connection:
-			self._logger.info("Debug drop of connection requested, raising SerialTimeoutException")
-			raise SerialTimeoutException()
-
 		with self._incoming_lock:
 			if self.incoming is None or self.outgoing is None:
 				return 0
@@ -1391,9 +1380,6 @@ class Serial(object):
 		if self._debug_awol:
 			time.sleep(self._read_timeout)
 			return b""
-
-		if self._debug_drop_connection:
-			raise SerialTimeoutException()
 
 		if self._debug_sleep > 0:
 			# if we are supposed to sleep, we sleep not longer than the read timeout
