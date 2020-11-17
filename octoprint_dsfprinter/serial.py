@@ -5,6 +5,7 @@ __author__ = "Oliver Bruckauf <dsfprinter@bruckauf.net>"
 __license__ = 'GNU Affero General Public License http://www.gnu.org/licenses/agpl.html'
 
 import io
+import sys
 import time
 import os
 import re
@@ -12,16 +13,13 @@ import threading
 
 from octoprint_dsfprinter.printer import Printer
 
-try:
-	import queue
-except ImportError:
-	import Queue as queue
+import queue
 
 # noinspection PyCompatibility
 from past.builtins import basestring
 
 from serial import SerialTimeoutException
-from typing import Any
+from typing import Any, Pattern
 
 from octoprint.plugin import plugin_manager
 from octoprint.util import RepeatedTimer, monotonic_time, to_bytes, to_unicode
@@ -32,16 +30,17 @@ class Serial(object):
 	command_regex = re.compile(r"^([GMTF])(\d+)")
 	sleep_regex = re.compile(r"sleep (\d+)")
 	sleep_after_regex = re.compile(r"sleep_after ([GMTF]\d+) (\d+)")
-	sleep_after_next_regex = re.compile(r"sleep_after_next ([GMTF]\d+) (\d+)")
-	custom_action_regex = re.compile(r"action_custom ([a-zA-Z0-9_]+)(\s+.*)?")
+	sleep_after_next_regex: Pattern[str] = re.compile(r"sleep_after_next ([GMTF]\d+) (\d+)")
+	custom_action_regex: Pattern[str] = re.compile(r"action_custom ([a-zA-Z0-9_]+)(\s+.*)?")
 	prepare_ok_regex = re.compile(r"prepare_ok (.*)")
 	send_regex = re.compile(r"send (.*)")
 	set_ambient_regex = re.compile(r"set_ambient ([-+]?[0-9]*\.?[0-9]+)")
 	start_sd_regex = re.compile(r"start_sd (.*)")
 	select_sd_regex = re.compile(r"select_sd (.*)")
 
-	def __init__(self, printer: Printer, settings, seriallog_handler=None,
-				 read_timeout=5.0, write_timeout=10.0, faked_baudrate=115200):
+	def __init__(
+			self, printer: Printer, settings, seriallog_handler=None,
+			read_timeout=5.0, write_timeout=10.0, faked_baudrate=115200):
 		import logging
 		self._logger = logging.getLogger("octoprint.plugins.dsfprinter.DSFPrinter")
 		self._logger.setLevel(logging.DEBUG)
@@ -50,7 +49,7 @@ class Serial(object):
 		self._settings = settings
 		self._faked_baudrate = faked_baudrate
 
-		self._seriallog = logging.getLogger("octoprint.plugin.dsfprinter.DSFPrinter.serial")
+		self._seriallog = logging.getLogger("octoprint.plugin.dsfprinter.serial")
 		self._seriallog.setLevel(logging.CRITICAL)
 		self._seriallog.propagate = False
 
@@ -1238,7 +1237,7 @@ class Serial(object):
 			e = True
 
 		if x is None and y is None and z is None and e is None:
-			self._lastX = self._lastY = self._lastZ = self._lastE[self.currentExtruder] = 0
+			self._lastX = self._lastY = self._lastZ = self._lastE = 0
 		else:
 			if x:
 				self._lastX = 0
@@ -1333,20 +1332,30 @@ class Serial(object):
 		if os.path.exists(f) and os.path.isfile(f):
 			os.remove(f)
 
+	# noinspection PyBroadException
 	def _processBuffer(self):
-		while self.buffered is not None:
+		# while self.buffered is not None:
+		# 	try:
+		# 		line = self.buffered.get(timeout=0.5)
+		# 	except queue.Empty:
+		# 		continue
+		#
+		# 	if line is None:
+		# 		continue
+		#
+		# 	self._performMove(line)
+		# 	self.buffered.task_done()
+
+		while True:
 			try:
-				line = self.buffered.get(timeout=0.5)
-			except queue.Empty:
-				continue
-
-			if line is None:
-				continue
-
-			self._performMove(line)
-			self.buffered.task_done()
-
-		self._logger.info("Closing down buffer loop")
+				self._logger.debug("+processBuffer")
+				cde = self.printer.intercept()
+				data = to_unicode(cde.__str__(), encoding="ascii", errors="replace").strip()
+				self._send(data)
+			except:
+				self._logger.exception("Exception on intercept", sys.exc_info())
+			finally:
+				self._logger.debug("-processBuffer")
 
 	def write(self, data):
 		# type: (bytes) -> int

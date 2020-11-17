@@ -5,13 +5,13 @@ import logging
 from threading import Condition, Event
 
 from pydsfapi import pydsfapi
-from pydsfapi.initmessages.clientinitmessages import SubscriptionMode
+from pydsfapi.commands.code import Code
+from pydsfapi.initmessages.clientinitmessages import SubscriptionMode, InterceptionMode
 
 from octoprint.util import monotonic_time
 from octoprint_dsfprinter.model.patch import patch
 
 
-# noinspection PyBroadException
 class Printer:
 	logger = logging.getLogger("octoprint.plugins.dsfprinter.printer")
 	logger.setLevel(logging.DEBUG)
@@ -22,7 +22,7 @@ class Printer:
 	interval = .01
 
 	def __init__(self, settings):
-		self.logger.debug("+__init__")
+		self.logger.debug("__init__")
 		self.settings = settings
 		self.model = None
 
@@ -41,6 +41,9 @@ class Printer:
 
 		self.command_connection = pydsfapi.CommandConnection(debug=True)
 		self.command_connection.connect()
+
+		self.intercept_connection = pydsfapi.InterceptConnection(InterceptionMode.PRE, debug=True)
+		self.intercept_connection.connect()
 
 	def subscribe(self):
 		self.logger.debug("+subscribe")
@@ -194,6 +197,7 @@ class Printer:
 				self.temp_logger.debug("-target_chamber_temp()->{}".format(temp))
 				return temp
 
+	# noinspection PyBroadException
 	def command(self, command_str):
 		# type: (str) -> str
 		try:
@@ -203,3 +207,19 @@ class Printer:
 		except:
 			return 'Not OK, something went wrong'
 
+	def intercept(self):
+		# type: () -> Code
+		# Wait for a code to arrive
+		cde = self.intercept_connection.receive_code()
+		# Flush the code's channel to be sure we are being in sync with the machine
+		success = self.intercept_connection.flush(cde.channel)
+		# Flushing failed so we need to cancel our code
+		if not success:
+			print('Flush failed')
+			self.intercept_connection.cancel_code()
+			raise BufferError()
+		self.logger.debug("intercept code={}".format(cde))
+		print(cde, cde.flags)
+		# We here ignore it so it will be continued to be processed
+		self.intercept_connection.ignore_code()
+		return cde
