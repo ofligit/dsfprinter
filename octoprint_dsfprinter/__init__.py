@@ -3,7 +3,7 @@ from __future__ import absolute_import
 
 import octoprint.plugin
 
-from octoprint_dsfprinter import printer
+from octoprint_dsfprinter import simple_serial, simple_printer
 
 
 class DSFPrinterPlugin(
@@ -15,6 +15,7 @@ class DSFPrinterPlugin(
 
 	def __init__(self):
 		super().__init__()
+		self.comm_instance = None
 		self.printer = None
 
 	def on_after_startup(self):
@@ -48,7 +49,6 @@ class DSFPrinterPlugin(
 			"sendBusy": False,
 			"busyInterval": 2.0,
 			"preparedOks": [],
-			"okFormatString": "ok",
 			"m115FormatString": "FIRMWARE_NAME:{firmware_name} PROTOCOL_VERSION:1.0",
 			"m114FormatString": "X:{x} Y:{y} Z:{z} E:{e[current]} Count: A:{a} B:{b} C:{c}",
 			"ambientTemperature": 21.3,
@@ -112,30 +112,28 @@ class DSFPrinterPlugin(
 		if not port == "DSF":
 			return None
 
-		self.printer = printer.Printer(self._settings)
+		self.comm_instance = comm_instance
+		self.printer = simple_printer.SimplePrinter(self._settings)
 
 		import logging.handlers
 		from octoprint.logging.handlers import CleaningTimedRotatingFileHandler
 
-		seriallog_handler = CleaningTimedRotatingFileHandler(
+		serial_log_handler = CleaningTimedRotatingFileHandler(
 			self._settings.get_plugin_logfile_path(postfix="serial"),
 			when="D",
 			backupCount=3)
 
-		seriallog_handler.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
-		seriallog_handler.setLevel(logging.DEBUG)
+		serial_log_handler.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
+		serial_log_handler.setLevel(logging.DEBUG)
 
+		from . import simple_serial
 
-		from . import serial
-
-		serial_obj = serial.Serial(
+		serial_obj = simple_serial.Serial(
 			self.printer,
 			self._settings,
-			seriallog_handler=seriallog_handler,
+			serial_log_handler=serial_log_handler,
 			read_timeout=float(read_timeout),
 			faked_baudrate=baudrate)
-
-		self.printer.subscribe()
 
 		self._logger.info("-DSFPrinterPlugin.dsfprinter_factory port=" + str(port))
 		return serial_obj
